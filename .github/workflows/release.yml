@@ -28,6 +28,7 @@ jobs:
     runs-on: macos-26
     timeout-minutes: 45
     permissions:
+      attestations: read
       contents: write
     env:
       RELEASE_PUBLISH_ENABLED: ${{ (vars.PUBLIC_DISTRIBUTION_ENABLED == 'true' || inputs.publish_private_github_release) && 'true' || 'false' }}
