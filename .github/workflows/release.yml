@@ -105,6 +105,7 @@ jobs:
           fi
 
       - name: Validate pod locally before publication
+        if: steps.state.outputs.pod_publish == 'true'
         run: pod lib lint UXCam.podspec --allow-warnings --analyze --fail-fast
 
       - name: Publish GitHub Release

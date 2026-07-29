@@ -92,6 +92,7 @@ classification="$(python3 Scripts/release.py classify \
   echo "asset=$asset"
   echo "outcome=$(jq -r .outcome <<<"$classification")"
   echo "pod_state=$pod_state"
+  echo "pod_publish=$pod_publish"
   echo "publish_pod=$(jq -r .publish_pod <<<"$classification")"
   echo "publish_release=$(jq -r .publish_release <<<"$classification")"
   echo "release_state=$release_state"

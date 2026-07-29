@@ -61,7 +61,10 @@ asset, or reuse a version. Fix forward with a patch version.
 
 Version 3.9.0 already exists on CocoaPods and its published podspec references
 the legacy repository. Therefore its metadata sets `cocoapods.publish=false`
-and preserves the original podspec URL.
+and preserves the original podspec URL. The workflow skips CocoaPods lint for
+this bootstrap-only Release; the same archive and podspec have already passed
+CocoaPods lint locally and are already live on trunk. New publishable versions
+must pass both the local pre-publication lint and public post-publication lint.
 
 To publish only the private GitHub Release after validation, manually dispatch
 `Validate and publish SDK release` with
