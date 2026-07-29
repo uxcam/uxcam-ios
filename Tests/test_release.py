@@ -223,6 +223,29 @@ class RepositoryWorkflowTests(unittest.TestCase):
             workflow,
         )
 
+    def test_manual_cocoapods_recovery_is_gated_and_idempotent(self):
+        workflow = (
+            Path(__file__).resolve().parents[1]
+            / ".github/workflows/main.yml"
+        ).read_text(encoding="utf-8")
+        self.assertIn('REPOSITORY_VISIBILITY" != "public"', workflow)
+        self.assertIn('PUBLIC_DISTRIBUTION_ENABLED" != "true"', workflow)
+        self.assertIn('COCOAPODS_PUBLISH_ENABLED" != "true"', workflow)
+        self.assertIn(
+            "if: inputs.publish && "
+            "steps.state.outputs.publish_pod == 'true'",
+            workflow,
+        )
+        self.assertIn(
+            'Scripts/inspect_remote_state.sh "$GITHUB_SHA" "false" "true"',
+            workflow,
+        )
+        self.assertIn(
+            "https://github.com/uxcam/uxcam-ios/releases/download/"
+            "$VERSION/$ASSET",
+            workflow,
+        )
+
 
 class ArchiveValidationTests(unittest.TestCase):
     def create_archive(

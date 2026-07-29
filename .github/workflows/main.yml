@@ -1,0 +1,140 @@
+name: Manual CocoaPods recovery
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish the current missing pod after full validation
+        type: boolean
+        default: false
+        required: true
+
+permissions: {}
+
+concurrency:
+  group: publish-cocoapods-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  cocoapods:
+    name: Validate or recover CocoaPods
+    runs-on: macos-26
+    timeout-minutes: 45
+    permissions:
+      attestations: read
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Require public production gates
+        env:
+          COCOAPODS_PUBLISH_ENABLED: ${{ vars.COCOAPODS_PUBLISH_ENABLED }}
+          PUBLIC_DISTRIBUTION_ENABLED: ${{ vars.PUBLIC_DISTRIBUTION_ENABLED }}
+          REPOSITORY_VISIBILITY: ${{ github.event.repository.visibility }}
+        run: |
+          if [[ "$REPOSITORY_VISIBILITY" != "public" ]]; then
+            echo "error: manual CocoaPods recovery is disabled while the repository is private" >&2
+            exit 1
+          fi
+          if [[ "$PUBLIC_DISTRIBUTION_ENABLED" != "true" ||
+                "$COCOAPODS_PUBLISH_ENABLED" != "true" ]]; then
+            echo "error: both production publication gates must be enabled" >&2
+            exit 1
+          fi
+
+      - name: Validate repository
+        run: Scripts/validate_repository.sh
+
+      - name: Inspect release and CocoaPods state
+        id: state
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: Scripts/inspect_remote_state.sh "$GITHUB_SHA" "false" "true"
+
+      - name: Require a published Release
+        env:
+          RELEASE_STATE: ${{ steps.state.outputs.release_state }}
+        run: |
+          if [[ "$RELEASE_STATE" != "published" ]]; then
+            echo "error: CocoaPods recovery requires an already-published GitHub Release" >&2
+            exit 1
+          fi
+
+      - name: Download and validate immutable asset
+        env:
+          ASSET: ${{ steps.state.outputs.asset }}
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ steps.state.outputs.repository }}
+          VERSION: ${{ steps.state.outputs.version }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/release"
+          gh release download "$VERSION" \
+            --repo "$REPOSITORY" \
+            --pattern "$ASSET" \
+            --dir "$RUNNER_TEMP/release"
+          python3 Scripts/release.py validate-archive \
+            --archive "$RUNNER_TEMP/release/$ASSET"
+          gh release verify-asset "$VERSION" \
+            "$RUNNER_TEMP/release/$ASSET" \
+            --repo "$REPOSITORY"
+
+      - name: Verify public asset
+        if: steps.state.outputs.pod_publish == 'true'
+        env:
+          ASSET: ${{ steps.state.outputs.asset }}
+          VERSION: ${{ steps.state.outputs.version }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/public"
+          curl --fail --location --retry 3 --retry-all-errors \
+            "https://github.com/uxcam/uxcam-ios/releases/download/$VERSION/$ASSET" \
+            --output "$RUNNER_TEMP/public/$ASSET"
+          python3 Scripts/release.py validate-archive \
+            --archive "$RUNNER_TEMP/public/$ASSET"
+
+      - name: Verify SPM consumer builds
+        if: steps.state.outputs.pod_publish == 'true'
+        env:
+          ASSET: ${{ steps.state.outputs.asset }}
+        run: Scripts/verify_local_integration.sh "$RUNNER_TEMP/release/$ASSET"
+
+      - name: Lint podspec
+        if: steps.state.outputs.pod_publish == 'true'
+        run: pod spec lint UXCam.podspec --allow-warnings --fail-fast
+
+      - name: Publish missing pod
+        if: inputs.publish && steps.state.outputs.publish_pod == 'true'
+        env:
+          COCOAPODS_TRUNK_TOKEN: ${{ secrets.COCOAPODS_TRUNK_TOKEN }}
+        run: |
+          if [[ -z "$COCOAPODS_TRUNK_TOKEN" ]]; then
+            echo "error: COCOAPODS_TRUNK_TOKEN is not configured" >&2
+            exit 1
+          fi
+          pod trunk push UXCam.podspec --allow-warnings
+
+      - name: Report no-op
+        if: inputs.publish && steps.state.outputs.publish_pod != 'true'
+        run: echo "The current pod is already published or is intentionally non-publishable."
+
+      - name: Notify Slack
+        if: inputs.publish && steps.state.outputs.publish_pod == 'true'
+        env:
+          RELEASE_URL: https://github.com/${{ github.repository }}/releases/tag/${{ steps.state.outputs.version }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          VERSION: ${{ steps.state.outputs.version }}
+        run: |
+          if [[ -z "$SLACK_WEBHOOK_URL" ]]; then
+            echo "SLACK_WEBHOOK_URL is not configured; notification skipped."
+            exit 0
+          fi
+          jq -n \
+            --arg text "UXCam iOS SDK v$VERSION recovered on CocoaPods: $RELEASE_URL" \
+            '{text: $text}' \
+            | curl --fail-with-body --retry 3 \
+                -H 'Content-Type: application/json' \
+                --data-binary @- \
+                "$SLACK_WEBHOOK_URL"
