@@ -85,6 +85,12 @@ To publish only the private GitHub Release after validation, manually dispatch
 attempting CocoaPods publication. The release remains accessible only to
 authorized GitHub users while the repository is private.
 
+Run `Scripts/verify_private_readiness.sh` for a complete private-staging audit.
+It checks repository visibility and gates, the immutable Release and
+attestation, authenticated asset validation, the expected anonymous download
+failure, full-clone size, legacy-repository continuity, simulator/device
+SwiftPM consumer builds, and CocoaPods lint.
+
 ## Recovery
 
 The main workflow is idempotent. After fixing an external failure, dispatch it

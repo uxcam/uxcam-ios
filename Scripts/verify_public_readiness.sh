@@ -69,6 +69,7 @@ jq -e \
   ' <<<"$release" >/dev/null
 
 readiness_dir="$(mktemp -d)"
+trap 'rm -rf -- "$readiness_dir"' EXIT
 public_asset="$readiness_dir/$asset"
 curl --fail --location --retry 3 --retry-all-errors \
   "https://github.com/$repository/releases/download/$version/$asset" \

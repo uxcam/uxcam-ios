@@ -1,3 +1,4 @@
+import itertools
 import json
 import plistlib
 import tempfile
@@ -123,6 +124,61 @@ class ReleaseStateTests(unittest.TestCase):
     def test_tag_at_wrong_commit_fails(self):
         with self.assertRaisesRegex(ReleaseError, "different commit"):
             self.classify(release="draft", tag="other")
+
+    def test_every_state_combination_preserves_publication_invariants(self):
+        combinations = itertools.product(
+            (False, True),
+            (False, True),
+            ("missing", "draft", "published"),
+            ("missing", "target", "release", "other"),
+            ("missing", "published"),
+            (False, True),
+        )
+        for (
+            release_enabled,
+            pod_enabled,
+            release_state,
+            tag_state,
+            pod_state,
+            pod_publish,
+        ) in combinations:
+            context = (
+                release_enabled,
+                pod_enabled,
+                release_state,
+                tag_state,
+                pod_state,
+                pod_publish,
+            )
+            try:
+                result = classify_state(
+                    release_publish_enabled=release_enabled,
+                    pod_publish_enabled=pod_enabled,
+                    release_state=release_state,
+                    tag_state=tag_state,
+                    pod_state=pod_state,
+                    pod_publish=pod_publish,
+                )
+            except ReleaseError:
+                continue
+
+            with self.subTest(context=context):
+                if result["publish_release"]:
+                    self.assertTrue(release_enabled)
+                    self.assertEqual(release_state, "draft")
+                if result["publish_pod"]:
+                    self.assertTrue(pod_enabled)
+                    self.assertTrue(pod_publish)
+                    self.assertEqual(pod_state, "missing")
+                    self.assertTrue(
+                        release_state == "published"
+                        or result["publish_release"]
+                    )
+                if release_state == "draft" and not release_enabled:
+                    self.assertFalse(result["publish_release"])
+                    self.assertFalse(result["publish_pod"])
+                if release_state == "published":
+                    self.assertFalse(result["publish_release"])
 
 
 class RepositoryManifestTests(unittest.TestCase):
