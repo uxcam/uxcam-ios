@@ -14,7 +14,7 @@ import sys
 import tempfile
 import zipfile
 from pathlib import Path, PurePosixPath
-from typing import Any
+from typing import Any, Optional
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -246,7 +246,7 @@ def validate_archive(path: Path, metadata: dict[str, Any]) -> dict[str, Any]:
 def prepare_release(
     archive: Path,
     version: str,
-    pod_source: str | None,
+    pod_source: Optional[str],
     pod_publish: bool,
     require_code_signature: bool,
 ) -> dict[str, Any]:
