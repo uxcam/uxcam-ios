@@ -151,6 +151,22 @@ class RepositoryWorkflowTests(unittest.TestCase):
             workflow,
         )
 
+    def test_publishable_release_builds_spm_consumers(self):
+        workflow = (
+            Path(__file__).resolve().parents[1]
+            / ".github/workflows/release.yml"
+        ).read_text(encoding="utf-8")
+        self.assertIn(
+            'Scripts/verify_local_integration.sh '
+            '"$RUNNER_TEMP/release/$ASSET"',
+            workflow,
+        )
+        self.assertIn(
+            "- name: Verify SPM consumer builds\n"
+            "        if: steps.state.outputs.pod_publish == 'true'",
+            workflow,
+        )
+
 
 class ArchiveValidationTests(unittest.TestCase):
     def create_archive(

@@ -62,7 +62,8 @@ asset attestation with `gh release verify-asset`.
 5. Open a PR containing `release-metadata.json`, `Package.swift`, and
    `UXCam.podspec`.
 6. Merge after validation succeeds. With production gates enabled, the main
-   workflow publishes the draft at the merge commit and pushes CocoaPods.
+   workflow validates simulator and device SwiftPM consumer builds, publishes
+   the draft at the merge commit, and pushes CocoaPods.
 
 Never delete a published release, move a published version tag, replace an
 asset, or reuse a version. Fix forward with a patch version.
@@ -73,8 +74,10 @@ Version 3.9.0 already exists on CocoaPods and its published podspec references
 the legacy repository. Therefore its metadata sets `cocoapods.publish=false`
 and preserves the original podspec URL. The workflow skips CocoaPods lint for
 this bootstrap-only Release; the same archive and podspec have already passed
-CocoaPods lint locally and are already live on trunk. New publishable versions
-must pass both the local pre-publication lint and public post-publication lint.
+CocoaPods lint locally and are already live on trunk. Its archive also passes
+local SwiftPM consumer builds for generic simulator and device destinations.
+New publishable versions must pass both the local pre-publication lint, the
+SwiftPM consumer builds, and public post-publication lint.
 
 To publish only the private GitHub Release after validation, manually dispatch
 `Validate and publish SDK release` with

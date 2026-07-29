@@ -6,5 +6,6 @@ cd "$root"
 
 python3 Scripts/release.py validate-manifests
 python3 -m unittest discover -s Tests -v
+bash -n Scripts/*.sh publish_draft.sh
 swift package dump-package >/dev/null
 Scripts/check_repository_size.sh
