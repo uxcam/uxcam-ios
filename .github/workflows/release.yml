@@ -25,7 +25,7 @@ jobs:
   release:
     name: Reconcile GitHub Release and CocoaPods
     if: vars.RELEASE_AUTOMATION_ENABLED == 'true'
-    runs-on: macos-15
+    runs-on: macos-26
     timeout-minutes: 45
     permissions:
       contents: write
@@ -43,6 +43,16 @@ jobs:
         with:
           fetch-depth: 1
           persist-credentials: false
+
+      - name: Select the SDK build toolchain
+        run: |
+          xcode_path="/Applications/Xcode_26.3.app/Contents/Developer"
+          if [[ ! -d "$xcode_path" ]]; then
+            echo "error: required Xcode 26.3 toolchain is unavailable" >&2
+            exit 1
+          fi
+          sudo xcode-select --switch "$xcode_path"
+          xcodebuild -version
 
       - name: Validate repository
         run: Scripts/validate_repository.sh
