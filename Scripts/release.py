@@ -315,14 +315,16 @@ def classify_state(
 ) -> dict[str, Any]:
     if release_state not in {"missing", "draft", "published"}:
         raise ReleaseError(f"Unknown release state: {release_state}")
-    if tag_state not in {"missing", "target", "other"}:
+    if tag_state not in {"missing", "target", "release", "other"}:
         raise ReleaseError(f"Unknown tag state: {tag_state}")
     if pod_state not in {"missing", "published"}:
         raise ReleaseError(f"Unknown CocoaPods state: {pod_state}")
     if release_state == "missing":
         raise ReleaseError("Release is missing; create its draft and exact asset first")
-    if release_state == "published" and tag_state != "target":
-        raise ReleaseError("Published release tag does not point at the expected commit")
+    if release_state == "published" and tag_state not in {"target", "release"}:
+        raise ReleaseError(
+            "Published release tag does not point at the expected release metadata"
+        )
     if release_state == "draft" and tag_state == "other":
         raise ReleaseError("Existing release tag points at a different commit")
 
@@ -390,7 +392,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--release-state", choices=["missing", "draft", "published"], required=True
     )
     classify_parser.add_argument(
-        "--tag-state", choices=["missing", "target", "other"], required=True
+        "--tag-state", choices=["missing", "target", "release", "other"], required=True
     )
     classify_parser.add_argument(
         "--pod-state", choices=["missing", "published"], required=True

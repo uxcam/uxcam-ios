@@ -35,7 +35,7 @@ class ReleaseStateTests(unittest.TestCase):
         self.assertFalse(result["publish_release"])
         self.assertFalse(result["publish_pod"])
 
-    def test_private_published_release_is_validation_only(self):
+    def test_private_published_release_waits_for_cocoapods(self):
         result = self.classify(
             release_enabled=False, pod_enabled=False, pod="missing"
         )
@@ -97,8 +97,12 @@ class ReleaseStateTests(unittest.TestCase):
             self.classify(release="missing", tag="missing", pod="missing")
 
     def test_published_release_without_tag_fails(self):
-        with self.assertRaisesRegex(ReleaseError, "does not point"):
+        with self.assertRaisesRegex(ReleaseError, "release metadata"):
             self.classify(release="published", tag="missing")
+
+    def test_published_immutable_tag_with_matching_metadata_is_valid(self):
+        result = self.classify(release="published", tag="release")
+        self.assertEqual(result["outcome"], "complete")
 
     def test_tag_at_wrong_commit_fails(self):
         with self.assertRaisesRegex(ReleaseError, "different commit"):

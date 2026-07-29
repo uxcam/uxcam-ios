@@ -61,6 +61,19 @@ if tag_json="$(gh api "repos/$repository/git/ref/tags/$version" 2>/dev/null)"; t
   fi
   if [[ "$object_sha" == "$expected_sha" ]]; then
     tag_state="target"
+  elif [[ "$release_state" == "published" ]]; then
+    tag_metadata="$(
+      gh api "repos/$repository/contents/release-metadata.json?ref=$object_sha" \
+        --jq .content \
+        | python3 -c 'import base64, sys; print(base64.b64decode(sys.stdin.read()).decode())'
+    )"
+    current_metadata="$(jq -S . release-metadata.json)"
+    committed_metadata="$(jq -S . <<<"$tag_metadata")"
+    if [[ "$current_metadata" == "$committed_metadata" ]]; then
+      tag_state="release"
+    else
+      tag_state="other"
+    fi
   else
     tag_state="other"
   fi
