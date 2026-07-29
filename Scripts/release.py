@@ -11,6 +11,7 @@ import plistlib
 import re
 import stat
 import sys
+import tempfile
 import zipfile
 from pathlib import Path, PurePosixPath
 from typing import Any
@@ -89,10 +90,9 @@ def _single_match(pattern: str, content: str, name: str) -> str:
     return matches[0]
 
 
-def validate_manifests(metadata: dict[str, Any]) -> None:
-    package = PACKAGE_PATH.read_text(encoding="utf-8")
-    podspec = PODSPEC_PATH.read_text(encoding="utf-8")
-
+def _validate_manifest_contents(
+    metadata: dict[str, Any], package: str, podspec: str
+) -> None:
     package_version = _single_match(
         r'^let version = "([^"]+)"$', package, "Package.swift version"
     )
@@ -128,6 +128,12 @@ def validate_manifests(metadata: dict[str, Any]) -> None:
         failures.append("Package.swift does not use the canonical Release asset URL")
     if failures:
         raise ReleaseError("Manifest drift detected:\n- " + "\n- ".join(failures))
+
+
+def validate_manifests(metadata: dict[str, Any]) -> None:
+    package = PACKAGE_PATH.read_text(encoding="utf-8")
+    podspec = PODSPEC_PATH.read_text(encoding="utf-8")
+    _validate_manifest_contents(metadata, package, podspec)
 
 
 def sha256(path: Path) -> str:
@@ -265,13 +271,14 @@ def prepare_release(
         "validation": {"requireCodeSignature": require_code_signature},
         "version": version,
     }
+    validate_archive(archive, metadata)
 
     package = PACKAGE_PATH.read_text(encoding="utf-8")
-    package = re.sub(
+    package, package_version_count = re.subn(
         r'^let version = "[^"]+"$', f'let version = "{version}"', package, count=1,
         flags=re.MULTILINE,
     )
-    package = re.sub(
+    package, package_checksum_count = re.subn(
         r'^let checksum = "[^"]+"$',
         f'let checksum = "{checksum}"',
         package,
@@ -279,29 +286,53 @@ def prepare_release(
         flags=re.MULTILINE,
     )
     podspec = PODSPEC_PATH.read_text(encoding="utf-8")
-    podspec = re.sub(
+    podspec, pod_version_count = re.subn(
         r"^(\s*s\.version\s*=\s*)'[^']+'$",
         rf"\g<1>'{version}'",
         podspec,
         count=1,
         flags=re.MULTILINE,
     )
-    podspec = re.sub(
+    podspec, pod_source_count = re.subn(
         r'^(\s*s\.source\s*=\s*\{\s*:http\s*=>\s*)"[^"]+"(\s*\})$',
         rf'\g<1>"{source}"\g<2>',
         podspec,
         count=1,
         flags=re.MULTILINE,
     )
+    substitutions = {
+        "Package.swift version": package_version_count,
+        "Package.swift checksum": package_checksum_count,
+        "podspec version": pod_version_count,
+        "podspec source": pod_source_count,
+    }
+    invalid_substitutions = [
+        name for name, count in substitutions.items() if count != 1
+    ]
+    if invalid_substitutions:
+        raise ReleaseError(
+            "Could not prepare exactly one "
+            + ", ".join(sorted(invalid_substitutions))
+        )
 
-    METADATA_PATH.write_text(
-        json.dumps(metadata, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-    )
-    PACKAGE_PATH.write_text(package, encoding="utf-8")
-    PODSPEC_PATH.write_text(podspec, encoding="utf-8")
-    validate_manifests(metadata)
-    validate_archive(archive, metadata)
+    metadata_content = json.dumps(metadata, indent=2, sort_keys=True) + "\n"
+    _validate_manifest_contents(metadata, package, podspec)
+    _atomic_write(PACKAGE_PATH, package)
+    _atomic_write(PODSPEC_PATH, podspec)
+    _atomic_write(METADATA_PATH, metadata_content)
     return metadata
+
+
+def _atomic_write(path: Path, content: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    mode = stat.S_IMODE(path.stat().st_mode) if path.exists() else 0o644
+    with tempfile.NamedTemporaryFile(
+        "w", encoding="utf-8", dir=path.parent, delete=False
+    ) as stream:
+        stream.write(content)
+        temporary_path = Path(stream.name)
+    os.chmod(temporary_path, mode)
+    os.replace(temporary_path, path)
 
 
 def classify_state(

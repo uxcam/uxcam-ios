@@ -101,15 +101,16 @@ again:
 
 1. Confirm the private 3.9.0 release, tag, checksum, simulator build, and device
    build.
-2. Configure `COCOAPODS_TRUNK_TOKEN` and `SLACK_WEBHOOK_URL`.
-3. Make the repository public.
-4. Restore pinned Harden-Runner steps as the first step of each job.
-5. Confirm the Release asset is anonymously downloadable.
-6. Run a clean, unauthenticated SPM resolution and `pod spec lint`.
+2. Make the repository public while both publication gates remain `false`.
+3. Run `Scripts/configure_public_protection.sh`.
+4. Restore the pinned Harden-Runner step as the first step of each workflow
+   job.
+5. Configure `COCOAPODS_TRUNK_TOKEN` and `SLACK_WEBHOOK_URL`.
+6. Run `Scripts/verify_public_readiness.sh`. It verifies the anonymous asset,
+   full clone size, SPM resolution, simulator/device builds, CocoaPods lint,
+   immutable attestation, secrets, protection, and disabled gates.
 7. Set `PUBLIC_DISTRIBUTION_ENABLED=true`.
 8. Set `COCOAPODS_PUBLISH_ENABLED=true`.
-9. Apply branch protection, which the current organization plan does not
-   permit on a private repository.
-10. Update customer documentation and the legacy repository notice.
+9. Update customer documentation and the legacy repository notice.
 
 The gates are changed only after the anonymous download test passes.

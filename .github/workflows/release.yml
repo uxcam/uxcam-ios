@@ -145,11 +145,12 @@ jobs:
           ASSET: ${{ steps.state.outputs.asset }}
           VERSION: ${{ steps.state.outputs.version }}
         run: |
+          mkdir -p "$RUNNER_TEMP/public"
           curl -fL --retry 3 --retry-all-errors \
             "https://github.com/uxcam/uxcam-ios/releases/download/$VERSION/$ASSET" \
-            --output "$RUNNER_TEMP/public-$ASSET"
+            --output "$RUNNER_TEMP/public/$ASSET"
           python3 Scripts/release.py validate-archive \
-            --archive "$RUNNER_TEMP/public-$ASSET"
+            --archive "$RUNNER_TEMP/public/$ASSET"
           pod spec lint UXCam.podspec --allow-warnings --fail-fast
 
       - name: Publish CocoaPods

@@ -1,9 +1,12 @@
+import json
 import plistlib
 import tempfile
 import unittest
 import zipfile
 from pathlib import Path
+from unittest.mock import patch
 
+import Scripts.release as release_module
 from Scripts.release import (
     ASSET_NAME,
     REPOSITORY,
@@ -128,6 +131,27 @@ class RepositoryManifestTests(unittest.TestCase):
         validate_manifests(metadata)
 
 
+class RepositoryWorkflowTests(unittest.TestCase):
+    def test_public_asset_keeps_canonical_basename(self):
+        workflow = (
+            Path(__file__).resolve().parents[1]
+            / ".github/workflows/release.yml"
+        ).read_text(encoding="utf-8")
+        self.assertIn('$RUNNER_TEMP/public/$ASSET', workflow)
+        self.assertNotIn('$RUNNER_TEMP/public-$ASSET', workflow)
+
+    def test_cocoapods_requires_both_publication_gates(self):
+        workflow = (
+            Path(__file__).resolve().parents[1]
+            / ".github/workflows/release.yml"
+        ).read_text(encoding="utf-8")
+        self.assertIn(
+            "vars.PUBLIC_DISTRIBUTION_ENABLED == 'true' && "
+            "vars.COCOAPODS_PUBLISH_ENABLED == 'true'",
+            workflow,
+        )
+
+
 class ArchiveValidationTests(unittest.TestCase):
     def create_archive(
         self,
@@ -206,6 +230,16 @@ class ArchiveValidationTests(unittest.TestCase):
             with self.assertRaisesRegex(ReleaseError, "Checksum mismatch"):
                 validate_archive(archive, metadata)
 
+    def test_noncanonical_archive_basename_fails(self):
+        with tempfile.TemporaryDirectory() as directory:
+            archive = self.create_archive(Path(directory))
+            renamed = archive.with_name("public-UXCam.xcframework.zip")
+            archive.rename(renamed)
+            metadata = self.metadata(renamed)
+            metadata["asset"] = ASSET_NAME
+            with self.assertRaisesRegex(ReleaseError, "Archive basename"):
+                validate_archive(renamed, metadata)
+
     def test_path_traversal_fails(self):
         with tempfile.TemporaryDirectory() as directory:
             archive = self.create_archive(Path(directory), unsafe_path=True)
@@ -223,6 +257,106 @@ class ArchiveValidationTests(unittest.TestCase):
             archive = self.create_archive(Path(directory), framework_version="3.9.1")
             with self.assertRaisesRegex(ReleaseError, "versions do not match"):
                 validate_archive(archive, self.metadata(archive))
+
+    def test_prepare_failure_does_not_modify_manifests(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            archive = self.create_archive(root, framework_version="3.9.1")
+            package_path = root / "Package.swift"
+            podspec_path = root / "UXCam.podspec"
+            metadata_path = root / "release-metadata.json"
+            package_content = """// swift-tools-version:5.3
+let version = "3.8.0"
+let checksum = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+url: "https://github.com/uxcam/uxcam-ios/releases/download/\\(version)/UXCam.xcframework.zip"
+"""
+            podspec_content = """Pod::Spec.new do |s|
+  s.version = '3.8.0'
+  s.source = { :http => "https://example.invalid/old.zip" }
+end
+"""
+            package_path.write_text(package_content, encoding="utf-8")
+            podspec_path.write_text(podspec_content, encoding="utf-8")
+            metadata_path.write_text("unchanged\n", encoding="utf-8")
+
+            with (
+                patch.object(release_module, "PACKAGE_PATH", package_path),
+                patch.object(release_module, "PODSPEC_PATH", podspec_path),
+                patch.object(release_module, "METADATA_PATH", metadata_path),
+            ):
+                with self.assertRaisesRegex(ReleaseError, "versions do not match"):
+                    release_module.prepare_release(
+                        archive,
+                        "3.9.0",
+                        None,
+                        True,
+                        False,
+                    )
+
+            self.assertEqual(package_path.read_text(encoding="utf-8"), package_content)
+            self.assertEqual(podspec_path.read_text(encoding="utf-8"), podspec_content)
+            self.assertEqual(metadata_path.read_text(encoding="utf-8"), "unchanged\n")
+
+    def test_prepare_success_updates_all_manifests_atomically(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            archive = self.create_archive(root, framework_version="3.9.1")
+            package_path = root / "Package.swift"
+            podspec_path = root / "UXCam.podspec"
+            metadata_path = root / "release-metadata.json"
+            package_path.write_text(
+                """// swift-tools-version:5.3
+let version = "3.8.0"
+let checksum = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+url: "https://github.com/uxcam/uxcam-ios/releases/download/\\(version)/UXCam.xcframework.zip"
+""",
+                encoding="utf-8",
+            )
+            podspec_path.write_text(
+                """Pod::Spec.new do |s|
+  s.version = '3.8.0'
+  s.source = { :http => "https://example.invalid/old.zip" }
+end
+""",
+                encoding="utf-8",
+            )
+            metadata_path.write_text("{}\n", encoding="utf-8")
+            package_path.chmod(0o644)
+            podspec_path.chmod(0o644)
+            metadata_path.chmod(0o644)
+
+            with (
+                patch.object(release_module, "PACKAGE_PATH", package_path),
+                patch.object(release_module, "PODSPEC_PATH", podspec_path),
+                patch.object(release_module, "METADATA_PATH", metadata_path),
+            ):
+                result = release_module.prepare_release(
+                    archive,
+                    "3.9.1",
+                    None,
+                    True,
+                    True,
+                )
+
+            expected_url = (
+                "https://github.com/uxcam/uxcam-ios/releases/download/"
+                "3.9.1/UXCam.xcframework.zip"
+            )
+            self.assertEqual(result["version"], "3.9.1")
+            self.assertTrue(result["cocoapods"]["publish"])
+            self.assertTrue(result["validation"]["requireCodeSignature"])
+            self.assertIn(
+                'let version = "3.9.1"',
+                package_path.read_text(encoding="utf-8"),
+            )
+            self.assertIn(expected_url, podspec_path.read_text(encoding="utf-8"))
+            self.assertEqual(
+                json.loads(metadata_path.read_text(encoding="utf-8")),
+                result,
+            )
+            self.assertEqual(package_path.stat().st_mode & 0o777, 0o644)
+            self.assertEqual(podspec_path.stat().st_mode & 0o777, 0o644)
+            self.assertEqual(metadata_path.stat().st_mode & 0o777, 0o644)
 
 
 if __name__ == "__main__":
