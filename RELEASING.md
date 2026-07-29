@@ -18,10 +18,12 @@ The CocoaPods token and Slack webhook must be configured before public launch.
 The automation gate stays off only for the initial push, before the bootstrap
 draft exists; it is also the emergency stop for future releases.
 
-Harden-Runner and SARIF upload are conditionally enabled after the repository
-is public. Their free tiers do not support private repositories, so private
-staging uses pinned actions, least-privilege job permissions, and local zizmor
-validation without pretending that those two services are active.
+Harden-Runner is not installed during private staging because its private
+repository support requires an enterprise subscription; attempting to
+conditionally skip the action still executes its pre-job installer. Private
+staging uses pinned actions, least-privilege job permissions, and zizmor
+validation. SARIF upload is conditionally enabled only after the repository is
+public.
 
 The workflow has these recoverable states:
 
@@ -98,10 +100,13 @@ again:
    build.
 2. Configure `COCOAPODS_TRUNK_TOKEN` and `SLACK_WEBHOOK_URL`.
 3. Make the repository public.
-4. Confirm the Release asset is anonymously downloadable.
-5. Run a clean, unauthenticated SPM resolution and `pod spec lint`.
-6. Set `PUBLIC_DISTRIBUTION_ENABLED=true`.
-7. Set `COCOAPODS_PUBLISH_ENABLED=true`.
-8. Update customer documentation and the legacy repository notice.
+4. Restore pinned Harden-Runner steps as the first step of each job.
+5. Confirm the Release asset is anonymously downloadable.
+6. Run a clean, unauthenticated SPM resolution and `pod spec lint`.
+7. Set `PUBLIC_DISTRIBUTION_ENABLED=true`.
+8. Set `COCOAPODS_PUBLISH_ENABLED=true`.
+9. Apply branch protection, which the current organization plan does not
+   permit on a private repository.
+10. Update customer documentation and the legacy repository notice.
 
 The gates are changed only after the anonymous download test passes.
