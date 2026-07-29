@@ -92,9 +92,9 @@ again:
 - If both are published, the workflow validates the archive and exits as a
   successful no-op.
 - If `main` advanced after publication, the immutable tag remains valid only
-  when the release metadata committed at that tag exactly matches current
-  release metadata.
-- If a tag points to different release metadata, stop and investigate.
+  when `Package.swift`, the podspec, release metadata, and wrapper source
+  committed at that tag exactly match their current versions.
+- If a tag points to a different release surface, stop and investigate.
   Automation will not move it.
 
 ## Public launch checklist

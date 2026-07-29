@@ -110,10 +110,10 @@ class ReleaseStateTests(unittest.TestCase):
             self.classify(release="missing", tag="missing", pod="missing")
 
     def test_published_release_without_tag_fails(self):
-        with self.assertRaisesRegex(ReleaseError, "release metadata"):
+        with self.assertRaisesRegex(ReleaseError, "release surface"):
             self.classify(release="published", tag="missing")
 
-    def test_published_immutable_tag_with_matching_metadata_is_valid(self):
+    def test_published_immutable_tag_with_matching_release_surface_is_valid(self):
         result = self.classify(release="published", tag="release")
         self.assertEqual(result["outcome"], "complete")
 

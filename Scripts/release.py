@@ -323,7 +323,7 @@ def classify_state(
         raise ReleaseError("Release is missing; create its draft and exact asset first")
     if release_state == "published" and tag_state not in {"target", "release"}:
         raise ReleaseError(
-            "Published release tag does not point at the expected release metadata"
+            "Published release tag does not point at the expected release surface"
         )
     if release_state == "draft" and tag_state == "other":
         raise ReleaseError("Existing release tag points at a different commit")
