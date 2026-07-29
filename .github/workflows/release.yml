@@ -1,0 +1,164 @@
+name: Validate and publish SDK release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - Package.swift
+      - UXCam.podspec
+      - release-metadata.json
+  workflow_dispatch:
+    inputs:
+      publish_private_github_release:
+        description: Publish the validated GitHub Release while this repository is private
+        type: boolean
+        default: false
+        required: true
+
+permissions: {}
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Reconcile GitHub Release and CocoaPods
+    if: vars.RELEASE_AUTOMATION_ENABLED == 'true'
+    runs-on: macos-15
+    timeout-minutes: 45
+    permissions:
+      contents: write
+    env:
+      RELEASE_PUBLISH_ENABLED: ${{ (vars.PUBLIC_DISTRIBUTION_ENABLED == 'true' || inputs.publish_private_github_release) && 'true' || 'false' }}
+      POD_PUBLISH_ENABLED: ${{ (vars.PUBLIC_DISTRIBUTION_ENABLED == 'true' && vars.COCOAPODS_PUBLISH_ENABLED == 'true') && 'true' || 'false' }}
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Validate repository
+        run: Scripts/validate_repository.sh
+
+      - name: Inspect release state
+        id: state
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          Scripts/inspect_remote_state.sh \
+            "$GITHUB_SHA" \
+            "$RELEASE_PUBLISH_ENABLED" \
+            "$POD_PUBLISH_ENABLED"
+
+      - name: Download exact draft or published asset
+        env:
+          ASSET: ${{ steps.state.outputs.asset }}
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ steps.state.outputs.repository }}
+          VERSION: ${{ steps.state.outputs.version }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/release"
+          gh release download "$VERSION" \
+            --repo "$REPOSITORY" \
+            --pattern "$ASSET" \
+            --dir "$RUNNER_TEMP/release"
+          test -f "$RUNNER_TEMP/release/$ASSET"
+
+      - name: Validate XCFramework archive
+        env:
+          ASSET: ${{ steps.state.outputs.asset }}
+        run: |
+          python3 Scripts/release.py validate-archive \
+            --archive "$RUNNER_TEMP/release/$ASSET"
+          ditto -x -k "$RUNNER_TEMP/release/$ASSET" "$GITHUB_WORKSPACE"
+          require_signature="$(jq -r .validation.requireCodeSignature release-metadata.json)"
+          signature_failure=0
+          while IFS= read -r -d '' framework; do
+            if ! codesign --verify --deep --strict --verbose=2 "$framework"; then
+              if [[ "$require_signature" == "true" ]]; then
+                signature_failure=1
+              else
+                echo "::warning file=$framework::Existing artifact signature is absent or invalid"
+              fi
+            fi
+          done < <(find UXCam.xcframework -type d -name '*.framework' -print0)
+          if (( signature_failure != 0 )); then
+            echo "error: a required framework signature is absent or invalid" >&2
+            exit 1
+          fi
+
+      - name: Validate pod locally before publication
+        run: pod lib lint UXCam.podspec --allow-warnings --analyze --fail-fast
+
+      - name: Publish GitHub Release
+        if: steps.state.outputs.publish_release == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ steps.state.outputs.repository }}
+          VERSION: ${{ steps.state.outputs.version }}
+        run: |
+          gh release edit "$VERSION" \
+            --repo "$REPOSITORY" \
+            --draft=false \
+            --latest \
+            --target "$GITHUB_SHA"
+
+      - name: Verify reconciled state
+        id: reconciled
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          Scripts/inspect_remote_state.sh \
+            "$GITHUB_SHA" \
+            "false" \
+            "$POD_PUBLISH_ENABLED"
+
+      - name: Verify public asset and podspec
+        if: steps.state.outputs.publish_pod == 'true'
+        env:
+          ASSET: ${{ steps.state.outputs.asset }}
+          VERSION: ${{ steps.state.outputs.version }}
+        run: |
+          curl -fL --retry 3 --retry-all-errors \
+            "https://github.com/uxcam/uxcam-ios/releases/download/$VERSION/$ASSET" \
+            --output "$RUNNER_TEMP/public-$ASSET"
+          python3 Scripts/release.py validate-archive \
+            --archive "$RUNNER_TEMP/public-$ASSET"
+          pod spec lint UXCam.podspec --allow-warnings --fail-fast
+
+      - name: Publish CocoaPods
+        if: steps.state.outputs.publish_pod == 'true'
+        env:
+          COCOAPODS_TRUNK_TOKEN: ${{ secrets.COCOAPODS_TRUNK_TOKEN }}
+        run: |
+          if [[ -z "$COCOAPODS_TRUNK_TOKEN" ]]; then
+            echo "error: COCOAPODS_TRUNK_TOKEN is not configured" >&2
+            exit 1
+          fi
+          pod trunk push UXCam.podspec --allow-warnings
+
+      - name: Notify Slack
+        if: steps.state.outputs.publish_release == 'true' || steps.state.outputs.publish_pod == 'true'
+        env:
+          RELEASE_URL: https://github.com/${{ github.repository }}/releases/tag/${{ steps.state.outputs.version }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          VERSION: ${{ steps.state.outputs.version }}
+        run: |
+          if [[ -z "$SLACK_WEBHOOK_URL" ]]; then
+            echo "SLACK_WEBHOOK_URL is not configured; notification skipped."
+            exit 0
+          fi
+          jq -n \
+            --arg text "UXCam iOS SDK v$VERSION released: $RELEASE_URL" \
+            '{text: $text}' \
+            | curl --fail-with-body --retry 3 \
+                -H 'Content-Type: application/json' \
+                --data-binary @- \
+                "$SLACK_WEBHOOK_URL"
