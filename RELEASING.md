@@ -18,6 +18,11 @@ The CocoaPods token and Slack webhook must be configured before public launch.
 The automation gate stays off only for the initial push, before the bootstrap
 draft exists; it is also the emergency stop for future releases.
 
+Harden-Runner and SARIF upload are conditionally enabled after the repository
+is public. Their free tiers do not support private repositories, so private
+staging uses pinned actions, least-privilege job permissions, and local zizmor
+validation without pretending that those two services are active.
+
 The workflow has these recoverable states:
 
 | GitHub Release | CocoaPods | Result |

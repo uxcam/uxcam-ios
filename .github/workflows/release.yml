@@ -34,6 +34,7 @@ jobs:
       POD_PUBLISH_ENABLED: ${{ (vars.PUBLIC_DISTRIBUTION_ENABLED == 'true' && vars.COCOAPODS_PUBLISH_ENABLED == 'true') && 'true' || 'false' }}
     steps:
       - name: Harden runner
+        if: github.event.repository.visibility == 'public'
         uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         with:
           egress-policy: audit
