@@ -41,6 +41,14 @@ asset attestation with `gh release verify-asset`.
 
 ## Prepare a normal release
 
+Tagged Xcode Cloud builds in `ios-framework` normally perform this process
+automatically: the producer validates the archive with this repository's
+tooling, creates or reuses the draft Release, pushes `release/VERSION`, and
+opens a draft PR. Matching retries are no-ops; conflicting assets or branches
+fail without replacement.
+
+For a manual fallback:
+
 1. Build and sign `UXCam.xcframework`.
 2. Create the archive with the exact name `UXCam.xcframework.zip`.
 3. Start from a clean `main` checkout of this repository.
