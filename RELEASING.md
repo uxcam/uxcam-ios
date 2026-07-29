@@ -36,6 +36,9 @@ The workflow has these recoverable states:
 | Published at expected commit | Published | Successful no-op |
 | Missing release/asset or wrong tag | Any | Fail without mutation |
 
+Every published immutable Release is also checked against GitHub's generated
+asset attestation with `gh release verify-asset`.
+
 ## Prepare a normal release
 
 1. Build and sign `UXCam.xcframework`.

@@ -126,6 +126,18 @@ jobs:
             "false" \
             "$POD_PUBLISH_ENABLED"
 
+      - name: Verify immutable Release attestation
+        if: steps.reconciled.outputs.release_state == 'published'
+        env:
+          ASSET: ${{ steps.state.outputs.asset }}
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ steps.state.outputs.repository }}
+          VERSION: ${{ steps.state.outputs.version }}
+        run: |
+          gh release verify-asset "$VERSION" \
+            "$RUNNER_TEMP/release/$ASSET" \
+            --repo "$REPOSITORY"
+
       - name: Verify public asset and podspec
         if: steps.state.outputs.publish_pod == 'true'
         env:
