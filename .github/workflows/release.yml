@@ -44,14 +44,14 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
-      - name: Select the SDK build toolchain
+      - name: Verify the SDK validation toolchain
         run: |
-          xcode_path="/Applications/Xcode_26.3.app/Contents/Developer"
-          if [[ ! -d "$xcode_path" ]]; then
-            echo "error: required Xcode 26.3 toolchain is unavailable" >&2
+          xcode_version="$(xcodebuild -version | awk 'NR == 1 { print $2 }')"
+          xcode_major="${xcode_version%%.*}"
+          if [[ ! "$xcode_major" =~ ^[0-9]+$ ]] || (( xcode_major < 26 )); then
+            echo "error: Xcode 26 or newer is required; found $xcode_version" >&2
             exit 1
           fi
-          sudo xcode-select --switch "$xcode_path"
           xcodebuild -version
 
       - name: Validate repository
