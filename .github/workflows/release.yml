@@ -1,0 +1,163 @@
+name: Publish SDK release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - Package.swift
+      - UXCam.podspec
+  workflow_dispatch: {}
+
+permissions: {}
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Publish GitHub Release and CocoaPods
+    if: vars.RELEASE_AUTOMATION_ENABLED == 'true'
+    runs-on: macos-15
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Read version and checksum from Package.swift
+        id: manifest
+        run: |
+          version="$(sed -n 's/^let version = "\([^"]*\)".*$/\1/p' Package.swift)"
+          checksum="$(sed -n 's/^let checksum = "\([^"]*\)".*$/\1/p' Package.swift)"
+          if ! printf '%s' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Invalid version in Package.swift: '$version'"
+            exit 1
+          fi
+          if ! printf '%s' "$checksum" | grep -Eq '^[0-9a-f]{64}$'; then
+            echo "::error::Invalid checksum in Package.swift"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "checksum=$checksum" >> "$GITHUB_OUTPUT"
+
+      - name: Download the release asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.manifest.outputs.version }}
+        run: |
+          gh release download "$VERSION" \
+            --pattern UXCam.xcframework.zip \
+            --dir "$RUNNER_TEMP"
+
+      - name: Verify the asset checksum
+        env:
+          CHECKSUM: ${{ steps.manifest.outputs.checksum }}
+        run: |
+          actual="$(swift package compute-checksum "$RUNNER_TEMP/UXCam.xcframework.zip")"
+          if [[ "$actual" != "$CHECKSUM" ]]; then
+            echo "::error::Asset checksum $actual does not match Package.swift"
+            exit 1
+          fi
+
+      - name: Publish the GitHub Release
+        id: publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.manifest.outputs.version }}
+        run: |
+          if [[ "$(gh release view "$VERSION" --json isDraft --jq .isDraft)" == "true" ]]; then
+            gh release edit "$VERSION" \
+              --draft=false \
+              --latest \
+              --target "$GITHUB_SHA"
+            echo "published=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Release $VERSION is already published."
+            echo "published=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check pod already published
+        id: pod
+        env:
+          VERSION: ${{ steps.manifest.outputs.version }}
+        run: |
+          if curl -fsSL --retry 3 --retry-all-errors \
+              "https://trunk.cocoapods.org/api/v1/pods/UXCam" \
+              | jq -e --arg version "$VERSION" \
+                  'any(.versions[]?; .name == $version)' >/dev/null; then
+            echo "UXCam $VERSION is already on CocoaPods trunk."
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Lint podspec
+        if: vars.COCOAPODS_PUBLISH_ENABLED == 'true' && steps.pod.outputs.exists == 'false'
+        run: pod spec lint UXCam.podspec --allow-warnings --fail-fast
+
+      - name: Publish to CocoaPods 🚀
+        if: vars.COCOAPODS_PUBLISH_ENABLED == 'true' && steps.pod.outputs.exists == 'false'
+        env:
+          COCOAPODS_TRUNK_TOKEN: ${{ secrets.COCOAPODS_TRUNK_TOKEN }}
+        run: |
+          if [[ -z "$COCOAPODS_TRUNK_TOKEN" ]]; then
+            echo "::error::COCOAPODS_TRUNK_TOKEN is not configured"
+            exit 1
+          fi
+          pod trunk push UXCam.podspec --allow-warnings
+
+      - name: Notify Slack
+        if: >-
+          steps.publish.outputs.published == 'true' ||
+          (vars.COCOAPODS_PUBLISH_ENABLED == 'true' && steps.pod.outputs.exists == 'false')
+        env:
+          RELEASE_URL: https://github.com/${{ github.repository }}/releases/tag/${{ steps.manifest.outputs.version }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          VERSION: ${{ steps.manifest.outputs.version }}
+        run: |
+          if [[ -z "$SLACK_WEBHOOK_URL" ]]; then
+            echo "SLACK_WEBHOOK_URL is not configured; notification skipped."
+            exit 0
+          fi
+          jq -n \
+            --arg version "$VERSION" \
+            --arg date "$(date +%d/%m/%Y)" \
+            --arg url "$RELEASE_URL" \
+            '{
+              text: (":rocket: UXCam iOS SDK " + $version + " released :rocket:"),
+              blocks: [
+                {
+                  type: "section",
+                  text: {
+                    type: "mrkdwn",
+                    text: ("<!here> UXCam iOS Native SDK " + $version
+                      + " has been published to CocoaPods and SPM\n:rocket: UXCam iOS SDK  "
+                      + $version + " :rocket:\n:calendar: " + $date)
+                  }
+                },
+                {
+                  type: "section",
+                  text: {type: "mrkdwn", text: "*CHANGELOG (Internal):*"}
+                },
+                {
+                  type: "section",
+                  fields: [
+                    {type: "mrkdwn", text: "*SDK*\niOS SDK"},
+                    {type: "mrkdwn", text: ("*Version*\n" + $version)}
+                  ]
+                },
+                {
+                  type: "section",
+                  text: {type: "mrkdwn", text: ("<" + $url + "|View release notes>")}
+                }
+              ]
+            }' \
+            | curl --fail-with-body --retry 3 \
+                -H 'Content-Type: application/json' \
+                --data-binary @- \
+                "$SLACK_WEBHOOK_URL"

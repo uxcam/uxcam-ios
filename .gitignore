@@ -1,0 +1,10 @@
+.DS_Store
+/.build/
+/.swiftpm/
+/.release-work/
+/UXCam.xcframework/
+/UXCam.xcframework.zip
+/UXCam-debug.xcframework/
+*.xcresult
+__pycache__/
+*.pyc

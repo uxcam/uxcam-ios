@@ -1,0 +1,51 @@
+name: Validate distribution repository
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch: {}
+
+permissions: {}
+
+concurrency:
+  group: validate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Manifests and repository size
+    runs-on: macos-15
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Validate Package.swift
+        run: swift package dump-package >/dev/null
+
+      - name: Lint podspec syntax
+        run: pod ipc spec UXCam.podspec >/dev/null
+
+      - name: Check manifest versions match
+        run: |
+          package_version="$(sed -n 's/^let version = "\([^"]*\)".*$/\1/p' Package.swift)"
+          pod_version="$(sed -n "s/^ *s\.version *= *'\([^']*\)'.*$/\1/p" UXCam.podspec)"
+          if [[ -z "$package_version" || "$package_version" != "$pod_version" ]]; then
+            echo "::error::Package.swift ('$package_version') and UXCam.podspec ('$pod_version') versions differ"
+            exit 1
+          fi
+
+      - name: Forbid tracked binary artifacts
+        run: |
+          forbidden="$(git ls-files | grep -E '\.(a|zip|framework|xcframework)(/|$)' || true)"
+          if [[ -n "$forbidden" ]]; then
+            echo "::error::Binary distribution artifacts must not be tracked"
+            echo "$forbidden"
+            exit 1
+          fi
