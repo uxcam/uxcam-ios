@@ -21,7 +21,7 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 30
     env:
-      DEVELOPER_DIR: /Applications/Xcode_26.2.app/Contents/Developer
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
     permissions:
       contents: write
     steps:
@@ -35,8 +35,8 @@ jobs:
         run: |
           xcode_version="$(xcodebuild -version | awk 'NR == 1 { print $2 }')"
           sdk_version="$(xcrun --sdk iphoneos --show-sdk-version)"
-          if [[ "$xcode_version" != "26.2" || "$sdk_version" != "26.2" ]]; then
-            echo "::error::Expected Xcode/iOS SDK 26.2, found Xcode $xcode_version with iOS SDK $sdk_version"
+          if [[ "$xcode_version" != "26.3" || "$sdk_version" != "26.2" ]]; then
+            echo "::error::Expected Xcode 26.3 with iOS SDK 26.2, found Xcode $xcode_version with iOS SDK $sdk_version"
             exit 1
           fi
 
