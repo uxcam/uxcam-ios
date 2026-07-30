@@ -105,7 +105,7 @@ jobs:
         run: pod lib lint UXCam.podspec --allow-warnings --analyze --fail-fast
 
       - name: Verify SPM consumer builds
-        if: steps.state.outputs.pod_publish == 'true'
+        if: steps.state.outputs.publish_release == 'true' || steps.state.outputs.pod_publish == 'true'
         env:
           ASSET: ${{ steps.state.outputs.asset }}
         run: Scripts/verify_local_integration.sh "$RUNNER_TEMP/release/$ASSET"

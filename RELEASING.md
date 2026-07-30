@@ -114,10 +114,9 @@ again:
 - If a tag points to a different release surface, stop and investigate.
   Automation will not move it.
 
-After public launch, `.github/workflows/main.yml` provides the equivalent
-manual CocoaPods recovery path retained from the legacy repository. Its
-`publish=false` default performs validation only. A real push additionally
-requires `publish=true`, both production gates, a public repository, a
+There is intentionally no separate recovery workflow: dispatching the main
+release workflow is the only publication path, so recovery and normal releases
+cannot drift apart. A CocoaPods retry still requires both production gates, a
 published immutable Release, a missing CocoaPods version, and the trunk token.
 
 ## Public launch checklist
