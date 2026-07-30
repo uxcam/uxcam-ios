@@ -24,7 +24,7 @@ Replace the dependency URL:
 ```swift
 .package(
     url: "https://github.com/uxcam/uxcam-ios",
-    from: "3.9.0"
+    from: "3.9.1" // the first version distributed from this repository
 )
 ```
 
@@ -32,8 +32,8 @@ Then run `swift package resolve` and commit the updated `Package.resolved`.
 
 ## Compatibility
 
-- The old URL remains available permanently at version 3.9.0 and earlier.
-- New SDK fixes and security updates will be released from `uxcam-ios`.
+- The old URL remains available permanently for version 3.9.0 and earlier.
+- Versions after 3.9.0 are released from `uxcam-ios`.
 - Never include both package URLs in one dependency graph. They have different
   package identities but export the same `UXCam` product and module.
 - CocoaPods users do not need to make any migration change.
