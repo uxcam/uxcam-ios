@@ -64,5 +64,5 @@ configuration and privacy guidance.
 
 ## Maintainers
 
-See [RELEASING.md](RELEASING.md) for the release state machine, private staging
-gates, recovery procedures, and public launch checklist.
+Releases are staged automatically from the internal SDK repository. Binaries
+are published only as GitHub Release assets and are never committed here.
