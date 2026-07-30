@@ -4,7 +4,8 @@ The package product and imported module remain named `UXCam`. Application code
 does not change, but the Git package identity changes from `uxcam-ios-sdk` to
 `uxcam-ios`.
 
-Do not migrate until UXCam announces that this repository is public.
+Migrate once a release (3.9.1 or later) is available in this repository;
+until then, the existing `uxcam-ios-sdk` dependency continues to work.
 
 ## Xcode projects
 
