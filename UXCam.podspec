@@ -22,12 +22,12 @@ Pod::Spec.new do |s|
   s.vendored_frameworks  = 'UXCam.xcframework'
 
   s.user_target_xcconfig = {
-    'LIBRARY_SEARCH_PATHS' => '$(inherited) "$(TOOLCHAIN_DIR)/usr/lib/swift/$(PLATFORM_NAME)" "/usr/lib/swift"'
+    'LIBRARY_SEARCH_PATHS' => '$(inherited) "$(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME)" "$(SDKROOT)/usr/lib/swift"'
   }
 
   s.static_framework      = true
   s.libraries             = 'z', 'iconv', 'c++'
   s.frameworks            = 'AVFoundation', 'CoreGraphics', 'CoreMedia', 'CoreVideo', 'CoreTelephony', 'MobileCoreServices', 'QuartzCore', 'SystemConfiguration', 'Security', 'WebKit'
-  s.xcconfig              = { 'FRAMEWORK_SEARCH_PATHS' => '"$(PODS_ROOT)/UXCam"' }
+  s.xcconfig              = { 'FRAMEWORK_SEARCH_PATHS' => '$(inherited) "$(PODS_ROOT)/UXCam"' }
   s.requires_arc          = true
 end
