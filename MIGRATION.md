@@ -4,7 +4,7 @@ The package product and imported module remain named `UXCam`. Application code
 does not change, but the Git package identity changes from `uxcam-ios-sdk` to
 `uxcam-ios`.
 
-Migrate once a release (3.9.1 or later) is available in this repository;
+Migrate once a release (3.10.0 or later) is available in this repository;
 until then, the existing `uxcam-ios-sdk` dependency continues to work.
 
 ## Xcode projects
@@ -25,7 +25,7 @@ Replace the dependency URL:
 ```swift
 .package(
     url: "https://github.com/uxcam/uxcam-ios",
-    from: "3.9.1" // the first version distributed from this repository
+    from: "3.10.0" // the first version distributed from this repository
 )
 ```
 
