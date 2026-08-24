@@ -1,8 +1,8 @@
 // swift-tools-version:5.3
 import PackageDescription
 
-let version = "3.10.1"
-let checksum = "f45e99bc591b706450e293b6650878292edc3472d336247996d4073d5ff5b47d"
+let version = "3.10.2"
+let checksum = "a879bdd7c82ac0b64e2d1258f7cb5bf42ce53809cbcf5dca21b275f349c02896"
 
 let package = Package(
     name: "UXCam",
