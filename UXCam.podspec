@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name                 = 'UXCam'
-  s.version              = '3.10.1'
+  s.version              = '3.10.2'
 
   s.summary              = 'UXCam SDK for iOS applications'
   s.description          = <<-DESC
@@ -18,7 +18,7 @@ Pod::Spec.new do |s|
 
   # UXCam 3.9.0 is already published on CocoaPods with this immutable source.
   # Release staging switches future versions to the new Release asset URL.
-  s.source               = { :http => "https://github.com/uxcam/uxcam-ios/releases/download/3.10.1/UXCam.xcframework.zip" }
+  s.source               = { :http => "https://github.com/uxcam/uxcam-ios/releases/download/3.10.2/UXCam.xcframework.zip" }
   s.vendored_frameworks  = 'UXCam.xcframework'
 
   s.user_target_xcconfig = {
