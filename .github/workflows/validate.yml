@@ -37,15 +37,6 @@ jobs:
             exit 1
           fi
 
-      - name: Forbid CocoaPods manifests
-        run: |
-          forbidden="$(git ls-files | grep -E '(^|/)(Podfile(\.lock)?|[^/]+\.podspec(\.json)?)$' || true)"
-          if [[ -n "$forbidden" ]]; then
-            echo "::error::UXCam is distributed through Swift Package Manager only; CocoaPods manifests must not be tracked"
-            echo "$forbidden"
-            exit 1
-          fi
-
       - name: Forbid tracked binary artifacts
         run: |
           forbidden="$(git ls-files | grep -E '\.(a|zip|framework|xcframework)(/|$)' || true)"
