@@ -29,15 +29,11 @@ jobs:
       - name: Validate Package.swift
         run: swift package dump-package >/dev/null
 
-      - name: Lint podspec syntax
-        run: pod ipc spec UXCam.podspec >/dev/null
-
-      - name: Check manifest versions match
+      - name: Check the package version
         run: |
           package_version="$(sed -n 's/^let version = "\([^"]*\)".*$/\1/p' Package.swift)"
-          pod_version="$(sed -n "s/^ *s\.version *= *'\([^']*\)'.*$/\1/p" UXCam.podspec)"
-          if [[ -z "$package_version" || "$package_version" != "$pod_version" ]]; then
-            echo "::error::Package.swift ('$package_version') and UXCam.podspec ('$pod_version') versions differ"
+          if ! printf '%s' "$package_version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Invalid version in Package.swift: '$package_version'"
             exit 1
           fi
 

@@ -37,4 +37,16 @@ Then run `swift package resolve` and commit the updated `Package.resolved`.
 - Versions after 3.9.0 are released from `uxcam-ios`.
 - Never include both package URLs in one dependency graph. They have different
   package identities but export the same `UXCam` product and module.
-- CocoaPods users do not need to make any migration change.
+- CocoaPods is no longer supported; see below.
+
+## Migrating from CocoaPods
+
+UXCam is no longer published to CocoaPods. The last published pod keeps
+working but receives no further releases. The `UXCam` module and API are the
+same, so application code does not change.
+
+1. Remove `pod 'UXCam'` from your `Podfile`.
+2. Run `pod install` (or `pod deintegrate` if UXCam was your only pod).
+3. Add `https://github.com/uxcam/uxcam-ios` as a Swift package dependency and
+   link the `UXCam` product to the same application targets.
+4. Build both a simulator and device destination.
