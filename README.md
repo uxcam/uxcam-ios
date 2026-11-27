@@ -1,8 +1,9 @@
 # UXCam SDK for iOS
 
 Official distribution of the [UXCam](https://uxcam.com) iOS SDK for Swift
-Package Manager and CocoaPods. The SDK binary ships as a GitHub Release
-asset, so this repository stays small and fast to clone.
+Package Manager. The SDK binary ships as a GitHub Release asset
+(`UXCam.xcframework.zip`), so this repository stays small and fast to clone.
+The same asset can be embedded directly as an XCFramework.
 
 ## Requirements
 
@@ -33,16 +34,19 @@ Migrating from `uxcam-ios-sdk`? Follow [MIGRATION.md](MIGRATION.md), and never
 include both package URLs in the same dependency graph — they expose the same
 `UXCam` product and module.
 
+### XCFramework
+
+Download `UXCam.xcframework.zip` from the
+[Releases](https://github.com/uxcam/uxcam-ios/releases) page, unzip it, and
+drag `UXCam.xcframework` into your application target (**Do Not Embed**; it is
+a static framework). Link `libz`, `libiconv` and `libc++`.
+
 ### CocoaPods
 
-Add the pod to your Podfile:
-
-```ruby
-pod 'UXCam'
-```
-
-Then run `pod install`. The pod name and application integration are
-unchanged.
+UXCam is no longer published to CocoaPods: the CocoaPods trunk stops
+accepting new versions, so the last published pod receives no further
+updates. Move to Swift Package Manager — see
+[MIGRATION.md](MIGRATION.md#migrating-from-cocoapods).
 
 ## Quick start
 

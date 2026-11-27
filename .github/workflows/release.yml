@@ -5,7 +5,6 @@ on:
     branches: [main]
     paths:
       - Package.swift
-      - UXCam.podspec
   workflow_dispatch: {}
 
 permissions: {}
@@ -16,7 +15,7 @@ concurrency:
 
 jobs:
   release:
-    name: Publish GitHub Release and CocoaPods
+    name: Publish GitHub Release
     if: vars.RELEASE_AUTOMATION_ENABLED == 'true'
     runs-on: macos-26
     timeout-minutes: 30
@@ -93,40 +92,8 @@ jobs:
             echo "published=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Check pod already published
-        id: pod
-        env:
-          VERSION: ${{ steps.manifest.outputs.version }}
-        run: |
-          if curl -fsSL --retry 3 --retry-all-errors \
-              "https://trunk.cocoapods.org/api/v1/pods/UXCam" \
-              | jq -e --arg version "$VERSION" \
-                  'any(.versions[]?; .name == $version)' >/dev/null; then
-            echo "UXCam $VERSION is already on CocoaPods trunk."
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Lint podspec
-        if: vars.COCOAPODS_PUBLISH_ENABLED == 'true' && steps.pod.outputs.exists == 'false'
-        run: pod spec lint UXCam.podspec --allow-warnings --fail-fast
-
-      - name: Publish to CocoaPods 🚀
-        if: vars.COCOAPODS_PUBLISH_ENABLED == 'true' && steps.pod.outputs.exists == 'false'
-        env:
-          COCOAPODS_TRUNK_TOKEN: ${{ secrets.COCOAPODS_TRUNK_TOKEN }}
-        run: |
-          if [[ -z "$COCOAPODS_TRUNK_TOKEN" ]]; then
-            echo "::error::COCOAPODS_TRUNK_TOKEN is not configured"
-            exit 1
-          fi
-          pod trunk push UXCam.podspec --allow-warnings
-
       - name: Notify Slack
-        if: >-
-          steps.publish.outputs.published == 'true' ||
-          (vars.COCOAPODS_PUBLISH_ENABLED == 'true' && steps.pod.outputs.exists == 'false')
+        if: steps.publish.outputs.published == 'true'
         env:
           RELEASE_URL: https://github.com/${{ github.repository }}/releases/tag/${{ steps.manifest.outputs.version }}
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
@@ -148,7 +115,7 @@ jobs:
                   text: {
                     type: "mrkdwn",
                     text: ("<!here> UXCam iOS Native SDK " + $version
-                      + " has been published to CocoaPods and SPM\n:rocket: UXCam iOS SDK  "
+                      + " has been published to Swift Package Manager\n:rocket: UXCam iOS SDK  "
                       + $version + " :rocket:\n:calendar: " + $date)
                   }
                 },
